@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⛏ Minecraft Web</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a2e;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    image-rendering: pixelated;
+  }
+
+  #gameContainer {
+    position: relative;
+    width: 960px;
+    height: 640px;
+    border: 4px solid #4a4a6a;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 0 40px rgba(100, 200, 100, 0.2);
+  }
+
+  #gameCanvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* HUD */
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
+    pointer-events: none;
+  }
+
+  .hearts {
+    display: flex;
+    gap: 2px;
+  }
+
+  .heart {
+    font-size: 20px;
+    filter: drop-shadow(1px 1px 0 #000);
+  }
+
+  .score {
+    color: #fff;
+    font-size: 16px;
+    text-shadow: 2px 2px 0 #000;
+  }
+
+  /* Inventory */
+  #inventory {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+    padding: 6px;
+    background: rgba(0,0,0,0.75);
+    border-radius: 8px;
+    border: 2px solid #555;
+  }
+
+  .inv-slot {
+    width: 52px;
+    height: 52px;
+    background: rgba(80,80,80,0.6);
+    border: 2px solid #444;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+  }
+
+  .inv-slot:hover { background: rgba(100,100,100,0.8); }
+  .inv-slot.active {
+    border-color: #fff;
+    background: rgba(120,120,120,0.8);
+    box-shadow: 0 0 10px rgba(255,255,255,0.3);
+  }
+
+  .inv-slot .icon { font-size: 24px; }
+  .inv-slot .count {
+    font-size: 10px;
+    color: #fff;
+    position: absolute;
+    bottom: 2px;
+    right: 4px;
+    text-shadow: 1px 1px 0 #000;
+  }
+
+  .inv-slot .key {
+    position: absolute;
+    top: 1px;
+    left: 3px;
+    font-size: 8px;
+    color: #aaa;
+  }
+
+  /* Crosshair */
+  #crosshair {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px;
+    color: rgba(255,255,255,0.6);
+    pointer-events: none;
+    text-shadow: 0 0 4px rgba(0,0,0,0.8);
+  }
+
+  /* Menu */
+  #menu {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+
+  #menu h1 {
+    font-size: 48px;
+    color: #4a4;
+    text-shadow: 4px 4px 0 #2a2, 6px 6px 0 #1a1;
+    margin-bottom: 8px;
+    letter-spacing: 4px;
+  }
+
+  #menu h2 {
+    font-size: 16px;
+    color: #aaa;
+    margin-bottom: 30px;
+  }
+
+  .menu-btn {
+    padding: 14px 50px;
+    font-size: 18px;
+    font-family: 'Courier New', monospace;
+    background: #4a7a4a;
+    color: #fff;
+    border: 3px solid #2a5a2a;
+    border-radius: 4px;
+    cursor: pointer;
+    margin: 6px;
+    transition: all 0.2s;
+    text-shadow: 2px 2px 0 #000;
+  }
+
+  .menu-btn:hover {
+    background: #5a9a5a;
+    transform: scale(1.05);
+  }
+
+  .controls-info {
+    margin-top: 25px;
+    color: #888;
+    font-size: 12px;
+    text-align: center;
+    line-height: 1.8;
+  }
+
+  /* Day/Night indicator */
+  #dayNight {
+    position: absolute;
+    top: 8px;
+    right: 140px;
+    font-size: 14px;
+    color: #fff;
+    text-shadow: 2px 2px 0 #000;
+  }
+
+  /* Notification */
+  #notification {
+    position: absolute;
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.8);
+    color: #fff;
+    padding: 8px 20px;
+    border-radius: 4px;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    text-shadow: 1px 1px 0 #000;
+  }
+
+  #notification.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div id="gameContainer">
+  <canvas id="gameCanvas" width="960" height="640"></canvas>
+
+  <div id="hud" style="display:none;">
+    <div class="hearts" id="hearts"></div>
+    <div id="dayNight">☀ Kun 1</div>
+    <div class="score" id="score">⛏ 0</div>
+  </div>
+
+  <div id="crosshair" style="display:none;">✛</div>
+
+  <div id="inventory" style="display:none;"></div>
+
+  <div id="notification"></div>
+
+  <div id="menu">
+    <h1>⛏ MINECRAFT</h1>
+    <h2>Web Versiya</h2>
+    <button class="menu-btn" onclick="startGame()">🎮 O'YINNI BOSHLASH</button>
+    <div class="controls-info">
+      WASD / Strelkalar — Harakat<br>
+      Sichqoncha chap tugma — Blok sindirish<br>
+      Sichqoncha o'ng tugma — Blok qo'yish<br>
+      1-9 — Inventarni tanlash<br>
+      E — Inventarni ochish/yopish<br>
+      Bo'sh joy — Sakrash
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// ==================== GAME CONSTANTS ====================
+const TILE = 40;
+const MAP_W = 80;
+const MAP_H = 80;
+const VIEW_W = Math.ceil(canvas.width / TILE) + 2;
+const VIEW_H = Math.ceil(canvas.height / TILE) + 2;
+
+// Block types
+const BLOCKS = {
+  AIR: 0,
+  GRASS: 1,
+  DIRT: 2,
+  STONE: 3,
+  WOOD: 4,
+  LEAVES: 5,
+  WATER: 6,
+  SAND: 7,
+  SNOW: 8,
+  COAL: 9,
+  IRON: 10,
+  DIAMOND: 11,
+  BRICK: 12,
+  GLASS: 13,
+  GOLD: 14,
+  BEDROCK: 15,
+  CRAFTING: 16
+};
+
+const BLOCK_COLORS = {
+  [BLOCKS.GRASS]: { top: '#4a8a3a', side: '#6a5a3a', name: 'O\'t' },
+  [BLOCKS.DIRT]: { top: '#8a6a4a', side: '#7a5a3a', name: 'Tuproq' },
+  [BLOCKS.STONE]: { top: '#888', side: '#777', name: 'Tosh' },
+  [BLOCKS.WOOD]: { top: '#9a7a5a', side: '#7a5a3a', name: 'Yog\'och' },
+  [BLOCKS.LEAVES]: { top: '#3a8a2a', side: '#2a7a1a', name: 'Barg' },
+  [BLOCKS.WATER]: { top: 'rgba(40,100,220,0.7)', side: 'rgba(30,80,200,0.7)', name: 'Suv' },
+  [BLOCKS.SAND]: { top: '#d4c484', side: '#c4b474', name: 'Qum' },
+  [BLOCKS.SNOW]: { top: '#eef4ff', side: '#d4dce8', name: 'Qor' },
+  [BLOCKS.COAL]: { top: '#666', side: '#555', name: 'Ko\'mir' },
+  [BLOCKS.IRON]: { top: '#b0a090', side: '#a09080', name: 'Temir' },
+  [BLOCKS.DIAMOND]: { top: '#4aeadc', side: '#3ad8cc', name: 'Olmos' },
+  [BLOCKS.BRICK]: { top: '#b44', side: '#a33', name: 'G\'isht' },
+  [BLOCKS.GLASS]: { top: 'rgba(200,220,255,0.4)', side: 'rgba(180,200,240,0.4)', name: 'Shisha' },
+  [BLOCKS.GOLD]: { top: '#fc0', side: '#da0', name: 'Oltin' },
+  [BLOCKS.BEDROCK]: { top: '#333', side: '#222', name: 'Tagtosh' },
+  [BLOCKS.CRAFTING]: { top: '#c49a6a', side: '#a47a4a', name: 'Hunarmand' }
+};
+
+const BLOCK_HARDNESS = {
+  [BLOCKS.GRASS]: 3, [BLOCKS.DIRT]: 2, [BLOCKS.STONE]: 5,
+  [BLOCKS.WOOD]: 4, [BLOCKS.LEAVES]: 1, [BLOCKS.WATER]: 99,
+  [BLOCKS.SAND]: 2, [BLOCKS.SNOW]: 1, [BLOCKS.COAL]: 6,
+  [BLOCKS.IRON]: 8, [BLOCKS.DIAMOND]: 10, [BLOCKS.BRICK]: 6,
+  [BLOCKS.GLASS]: 1, [BLOCKS.GOLD]: 9, [BLOCKS.BEDROCK]: 999,
+  [BLOCKS.CRAFTING]: 5
+};
+
+// Item types
+const ITEMS = {
+  WOOD_PICKAXE: 100, STONE_PICKAXE: 101, IRON_PICKAXE: 102, DIAMOND_PICKAXE: 103,
+  WOOD_SWORD: 110, STONE_SWORD: 111, IRON_SWORD: 112, DIAMOND_SWORD: 113,
+  APPLE: 120, BREAD: 121, COOKED_MEAT: 122,
+  GRASS_BLOCK: 201, DIRT_BLOCK: 202, STONE_BLOCK: 203,
+  WOOD_BLOCK: 204, LEAVES_BLOCK: 205, SAND_BLOCK: 207,
+  BRICK_BLOCK: 212, GLASS_BLOCK: 213
+};
+
+const ITEM_INFO = {
+  [ITEMS.WOOD_PICKAXE]: { icon: '⛏', name: 'Yog\'och kazgich', power: 2 },
+  [ITEMS.STONE_PICKAXE]: { icon: '⛏', name: 'Tosh kazgich', power: 4 },
+  [ITEMS.IRON_PICKAXE]: { icon: '⛏', name: 'Temir kazgich', power: 6 },
+  [ITEMS.DIAMOND_PICKAXE]: { icon: '⛏', name: 'Olmos kazgich', power: 10 },
+  [ITEMS.WOOD_SWORD]: { icon: '🗡', name: 'Yog\'och qilich', power: 3 },
+  [ITEMS.STONE_SWORD]: { icon: '🗡', name: 'Tosh qilich', power: 5 },
+  [ITEMS.IRON_SWORD]: { icon: '🗡', name: 'Temir qilich', power: 8 },
+  [ITEMS.DIAMOND_SWORD]: { icon: '🗡', name: 'Olmos qilich', power: 12 },
+  [ITEMS.APPLE]: { icon: '🍎', name: 'Olma', heal: 3 },
+  [ITEMS.BREAD]: { icon: '🍞', name: 'Non', heal: 5 },
+  [ITEMS.COOKED_MEAT]: { icon: '🥩', name: 'Pishirilgan go\'sht', heal: 8 }
+};
+
+// Block to item mapping
+const BLOCK_TO_ITEM = {
+  [BLOCKS.GRASS]: ITEMS.GRASS_BLOCK,
+  [BLOCKS.DIRT]: ITEMS.DIRT_BLOCK,
+  [BLOCKS.STONE]: ITEMS.STONE_BLOCK,
+  [BLOCKS.WOOD]: ITEMS.WOOD_BLOCK,
+  [BLOCKS.LEAVES]: ITEMS.LEAVES_BLOCK,
+  [BLOCKS.SAND]: ITEMS.SAND_BLOCK,
+  [BLOCKS.BRICK]: ITEMS.BRICK_BLOCK,
+  [BLOCKS.GLASS]: ITEMS.GLASS_BLOCK
+};
+
+// ==================== ANIMAL TYPES ====================
+const ANIMAL_TYPES = {
+  COW: { name: 'Sigir', icon: '🐄', color: '#8B4513', hp: 10, drops: [ITEMS.COOKED_MEAT], speed: 0.3, w: 1.2, h: 1 },
+  PIG: { name: 'Cho\'chqa', icon: '🐷', color: '#FFB6C1', hp: 8, drops: [ITEMS.COOKED_MEAT], speed: 0.4, w: 1, h: 0.8 },
+  SHEEP: { name: 'Qo\'y', icon: '🐑', color: '#FFF', hp: 6, drops: [], speed: 0.35, w: 1, h: 0.9 },
+  CHICKEN: { name: 'Tovuq', icon: '🐔', color: '#FFD700', hp: 4, drops: [], speed: 0.5, w: 0.5, h: 0.7 },
+  WOLF: { name: 'Bo\'ri', icon: '🐺', color: '#808080', hp: 12, drops: [], speed: 0.7, w: 1, h: 0.8, hostile: true },
+  ZOMBIE: { name: 'Zombi', icon: '🧟', color: '#4a7a4a', hp: 20, drops: [], speed: 0.4, w: 0.9, h: 1.7, hostile: true },
+  CREEPER: { name: 'Creeper', icon: '💥', color: '#0a0', hp: 15, drops: [], speed: 0.35, w: 0.8, h: 1.7, hostile: true },
+  SPIDER: { name: 'O\'rgimchak', icon: '🕷', color: '#333', hp: 10, drops: [], speed: 0.6, w: 0.8, h: 0.5, hostile: true }
+};
+
+// ==================== GAME STATE ====================
+let gameRunning = false;
+let map = [];
+let player = {
+  x: 40 * TILE, y: 40 * TILE,
+  vx: 0, vy: 0,
+  hp: 20, maxHp: 20,
+  speed: 3,
+  direction: 'down',
+  attackCooldown: 0,
+  inventory: {},
+  selectedSlot: 0,
+  hotbar: [ITEMS.WOOD_PICKAXE, BLOCKS.DIRT, BLOCKS.STONE, BLOCKS.WOOD, BLOCKS.SAND, ITEMS.APPLE, ITEMS.BREAD, BLOCKS.GLASS, BLOCKS.BRICK]
+};
+
+let animals = [];
+let particles = [];
+let dayTime = 0;
+let dayCount = 1;
+let breakProgress = {};
+let keys = {};
+let mouse = { x: 0, y: 0, down: false };
+let camera = { x: 0, y: 0 };
+let score = 0;
+let craftingOpen = false;
+
+// ==================== MAP GENERATION ====================
+function generateMap() {
+  map = [];
+  for (let y = 0; y < MAP_H; y++) {
+    map[y] = [];
+    for (let x = 0; x < MAP_W; x++) {
+      // Simple terrain generation
+      let height = Math.sin(x * 0.05) * 3 + Math.cos(y * 0.05) * 3 + Math.sin((x + y) * 0.03) * 2;
+      let r = Math.random();
+
+      if (height < -2.5) {
+        map[y][x] = BLOCKS.WATER;
+      } else if (height < -1.5) {
+        map[y][x] = BLOCKS.SAND;
+      } else if (height > 4) {
+        map[y][x] = BLOCKS.SNOW;
+      } else if (height > 2 && r < 0.1) {
+        map[y][x] = BLOCKS.DIAMOND;
+      } else if (height > 1 && r < 0.2) {
+        map[y][x] = BLOCKS.GOLD;
+      } else if (r < 0.15 && height > 0) {
+        map[y][x] = BLOCKS.IRON;
+      } else if (r < 0.25 && height > -1) {
+        map[y][x] = BLOCKS.COAL;
+      } else if (height > 0) {
+        map[y][x] = BLOCKS.GRASS;
+      } else {
+        map[y][x] = BLOCKS.DIRT;
+      }
+    }
+  }
+
+  // Generate trees
+  for (let i = 0; i < 120; i++) {
+    let tx = Math.floor(Math.random() * (MAP_W - 4)) + 2;
+    let ty = Math.floor(Math.random() * (MAP_H - 4)) + 2;
+    if (map[ty][tx] === BLOCKS.GRASS) {
+      // Tree trunk
+      for (let t = 0; t < 4; t++) {
+        if (ty - t >= 0) map[ty - t][tx] = BLOCKS.WOOD;
+      }
+      // Leaves
+      for (let ly = ty - 5; ly <= ty - 2; ly++) {
+        for (let lx = tx - 2; lx <= tx + 2; lx++) {
+          if (ly >= 0 && ly < MAP_H && lx >= 0 && lx < MAP_W) {
+            if (map[ly][lx] === BLOCKS.AIR || map[ly][lx] === BLOCKS.GRASS) {
+              if (Math.random() > 0.2) map[ly][lx] = BLOCKS.LEAVES;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Generate ore pockets
+  for (let i = 0; i < 40; i++) {
+    let cx = Math.floor(Math.random() * MAP_W);
+    let cy = Math.floor(Math.random() * MAP_H);
+    let ore = [BLOCKS.COAL, BLOCKS.IRON, BLOCKS.GOLD, BLOCKS.DIAMOND][Math.floor(Math.random() * 4)];
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        let nx = cx + dx, ny = cy + dy;
+        if (nx >= 0 && nx < MAP_W && ny >= 0 && ny < MAP_H) {
+          if (map[ny][nx] === BLOCKS.STONE || map[ny][nx] === BLOCKS.DIRT) {
+            if (Math.random() > 0.3) map[ny][nx] = ore;
+          }
+        }
+      }
+    }
+  }
+}
+
+function spawnAnimals() {
+  animals = [];
+  for (let type of Object.keys(ANIMAL_TYPES)) {
+    let info = ANIMAL_TYPES[type];
+    let count = type === 'ZOMBIE' || type === 'CREEPER' ? 5 : 12;
+    for (let i = 0; i < count; i++) {
+      let ax, ay;
+      do {
+        ax = Math.floor(Math.random() * MAP_W);
+        ay = Math.floor(Math.random() * MAP_H);
+      } while (map[ay][ax] === BLOCKS.WATER || map[ay][ax] === BLOCKS.BEDROCK);
+
+      animals.push({
+        type: type,
+        x: ax * TILE + TILE / 2,
+        y: ay * TILE + TILE / 2,
+        hp: info.hp,
+        maxHp: info.hp,
+        vx: 0, vy: 0,
+        moveTimer: 0,
+        attackTimer: 0,
+        dir: Math.random() * Math.PI * 2,
+        alive: true,
+        hurtTimer: 0
+      });
+    }
+  }
+}
+
+// ==================== PLAYER INVENTORY ====================
+function initInventory() {
+  player.inventory = {};
+  player.inventory[ITEMS.WOOD_PICKAXE] = 1;
+  player.inventory[ITEMS.APPLE] = 5;
+  player.hotbar = [ITEMS.WOOD_PICKAXE, BLOCKS.DIRT, BLOCKS.STONE, BLOCKS.WOOD, BLOCKS.SAND, ITEMS.APPLE, ITEMS.BREAD, BLOCKS.GLASS, BLOCKS.BRICK];
+}
+
+function updateHotbar() {
+  const inv = document.getElementById('inventory');
+  inv.innerHTML = '';
+  player.hotbar.forEach((item, i) => {
+    let info = ITEM_INFO[item] || BLOCK_COLORS[item];
+    let count = player.inventory[item] || 0;
+    if (item >= 200) { // Block in hotbar
+      info = ITEM_INFO[item] || { icon: '🟫', name: 'Blok' };
+    }
+    // Get display icon
+    let displayIcon = '';
+    if (ITEM_INFO[item]) displayIcon = ITEM_INFO[item].icon;
+    else if (BLOCK_COLORS[item]) displayIcon = '⬜';
+
+    const slot = document.createElement('div');
+    slot.className = 'inv-slot' + (player.selectedSlot === i ? ' active' : '');
+    slot.innerHTML = `
+      <span class="key">${i + 1}</span>
+      <span class="icon">${displayIcon}</span>
+      <span class="count">${count > 0 ? count : ''}</span>
+    `;
+    slot.onclick = () => { player.selectedSlot = i; updateHotbar(); };
+    inv.appendChild(slot);
+  });
+}
+
+function updateHearts() {
+  const heartsEl = document.getElementById('hearts');
+  heartsEl.innerHTML = '';
+  for (let i = 0; i < Math.ceil(player.maxHp / 2); i++) {
+    const h = document.createElement('span');
+    h.className = 'heart';
+    if (player.hp >= (i + 1) * 2) h.textContent = '❤️';
+    else if (player.hp >= i * 2 + 1) h.textContent = '💔';
+    else h.textContent = '🖤';
+    heartsEl.appendChild(h);
+  }
+}
+
+function notify(msg) {
+  const el = document.getElementById('notification');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ==================== RENDERING ====================
+function drawBlock(x, y, type) {
+  let colors = BLOCK_COLORS[type];
+  if (!colors) return;
+
+  let sx = x * TILE - camera.x;
+  let sy = y * TILE - camera.y;
+
+  // Check if on screen
+  if (sx < -TILE || sy < -TILE || sx > canvas.width || sy > canvas.height) return;
+
+  // Main block
+  ctx.fillStyle = colors.side;
+  ctx.fillRect(sx, sy, TILE, TILE);
+
+  // Top face
+  ctx.fillStyle = colors.top;
+  ctx.fillRect(sx + 2, sy + 2, TILE - 4, TILE - 4);
+
+  // Texture details
+  ctx.fillStyle = 'rgba(0,0,0,0.1)';
+  ctx.fillRect(sx + 4, sy + 4, TILE - 8, 2);
+  ctx.fillRect(sx + 4, sy + 8, TILE - 12, 2);
+
+  // Special block textures
+  if (type === BLOCKS.GRASS) {
+    ctx.fillStyle = '#5a9a4a';
+    for (let i = 0; i < 4; i++) {
+      ctx.fillRect(sx + 3 + i * 10, sy + 2, 6, 4);
+    }
+  } else if (type === BLOCKS.COAL) {
+    ctx.fillStyle = '#222';
+    ctx.fillRect(sx + 8, sy + 10, 10, 8);
+    ctx.fillRect(sx + 22, sy + 20, 8, 10);
+  } else if (type === BLOCKS.IRON) {
+    ctx.fillStyle = '#ddd';
+    ctx.fillRect(sx + 10, sy + 12, 8, 6);
+    ctx.fillRect(sx + 22, sy + 22, 6, 8);
+    ctx.fillRect(sx + 8, sy + 26, 10, 5);
+  } else if (type === BLOCKS.GOLD) {
+    ctx.fillStyle = '#ff0';
+    ctx.fillRect(sx + 10, sy + 12, 8, 6);
+    ctx.fillRect(sx + 22, sy + 22, 6, 8);
+    ctx.fillRect(sx + 8, sy + 26, 10, 5);
+  } else if (type === BLOCKS.DIAMOND) {
+    ctx.fillStyle = '#4aeadc';
+    ctx.fillRect(sx + 10, sy + 10, 8, 8);
+    ctx.fillRect(sx + 24, sy + 20, 6, 8);
+    ctx.fillRect(sx + 8, sy + 26, 10, 6);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(sx + 12, sy + 12, 3, 3);
+  } else if (type === BLOCKS.WATER) {
+    ctx.fillStyle = 'rgba(100,180,255,0.3)';
+    let wave = Math.sin(Date.now() * 0.003 + x + y) * 3;
+    ctx.fillRect(sx + 4, sy + 8 + wave, TILE - 8, 4);
+    ctx.fillRect(sx + 8, sy + 18 - wave, TILE - 12, 3);
+  } else if (type === BLOCKS.CRAFTING) {
+    ctx.fillStyle = '#888';
+    ctx.fillRect(sx + 8, sy + 8, TILE - 16, TILE - 16);
+    ctx.fillStyle = '#aaa';
+    ctx.fillRect(sx + 12, sy + 12, 6, 6);
+    ctx.fillRect(sx + 22, sy + 12, 6, 6);
+    ctx.fillRect(sx + 12, sy + 22, 6, 6);
+    ctx.fillRect(sx + 22, sy + 22, 6, 6);
+  }
+
+  // Border
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(sx, sy, TILE, TILE);
+}
+
+function drawAnimal(a) {
+  if (!a.alive) return;
+  let info = ANIMAL_TYPES[a.type];
+  let sx = a.x - camera.x;
+  let sy = a.y - camera.y;
+
+  if (sx < -100 || sy < -100 || sx > canvas.width + 100 || sy > canvas.height + 100) return;
+
+  let size = TILE * info.w;
+  let height = TILE * info.h;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(sx + size / 2, sy + height - 2, size / 2.5, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = a.hurtTimer > 0 ? '#f00' : info.color;
+  ctx.fillRect(sx, sy + height * 0.2, size, height * 0.7);
+
+  // Head
+  let headSize = size * 0.6;
+  ctx.fillRect(sx + size * 0.2, sy, headSize, headSize);
+
+  // Eyes
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(sx + size * 0.3, sy + headSize * 0.3, 4, 4);
+  ctx.fillRect(sx + size * 0.55, sy + headSize * 0.3, 4, 4);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(sx + size * 0.35, sy + headSize * 0.35, 2, 2);
+  ctx.fillRect(sx + size * 0.6, sy + headSize * 0.35, 2, 2);
+
+  // Legs
+  ctx.fillStyle = info.hostile ? '#444' : '#666';
+  let legH = height * 0.2;
+  ctx.fillRect(sx + 2, sy + height - legH, 6, legH);
+  ctx.fillRect(sx + size - 8, sy + height - legH, 6, legH);
+
+  // HP bar
+  if (a.hp < a.maxHp) {
+    ctx.fillStyle = '#400';
+    ctx.fillRect(sx, sy - 8, size, 4);
+    ctx.fillStyle = '#f00';
+    ctx.fillRect(sx, sy - 8, size * (a.hp / a.maxHp), 4);
+  }
+
+  // Hostile glow
+  if (info.hostile) {
+    ctx.fillStyle = 'rgba(255,0,0,0.1)';
+    ctx.beginPath();
+    ctx.arc(sx + size / 2, sy + height / 2, size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Icon
+  ctx.font = '16px serif';
+  ctx.fillText(info.icon, sx + size / 2 - 8, sy - 12);
+}
+
+function drawParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    let p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.1;
+    p.life--;
+
+    if (p.life <= 0) { particles.splice(i, 1); continue; }
+
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = p.life / p.maxLife;
+    ctx.fillRect(p.x - camera.x, p.y - camera.y, p.size, p.size);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function spawnBreakParticles(x, y, type) {
+  let colors = ['#8a6a4a', '#666', '#4a8a3a', '#9a7a5a', '#888'];
+  for (let i = 0; i < 8; i++) {
+    particles.push({
+      x: x * TILE + TILE / 2,
+      y: y * TILE + TILE / 2,
+      vx: (Math.random() - 0.5) * 4,
+      vy: (Math.random() - 0.5) * 4 - 2,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      size: 3 + Math.random() * 4,
+      life: 20 + Math.random() * 20,
+      maxLife: 40
+    });
+  }
+}
+
+function spawnAttackParticles(x, y) {
+  for (let i = 0; i < 6; i++) {
+    particles.push({
+      x: x, y: y,
+      vx: (Math.random() - 0.5) * 6,
+      vy: (Math.random() - 0.5) * 6,
+      color: '#f44',
+      size: 3 + Math.random() * 3,
+      life: 15,
+      maxLife: 15
+    });
+  }
+}
+
+function drawSky() {
+  // Day/night cycle
+  let cycle = (dayTime % 2400) / 2400;
+  let brightness;
+
+  if (cycle < 0.4) brightness = 1; // Day
+  else if (cycle < 0.5) brightness = 1 - (cycle - 0.4) * 10; // Sunset
+  else if (cycle < 0.8) brightness = 0.2; // Night
+  else if (cycle < 0.9) brightness = 0.2 + (cycle - 0.8) * 8; // Sunrise
+  else brightness = 1; // Day
+
+  // Sky background
+  let r = Math.floor(135 * brightness);
+  let g = Math.floor(206 * brightness);
+  let b = Math.floor(250 * brightness);
+  ctx.fillStyle = `rgb(${r},${g},${b})`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  return brightness;
+}
+
+function render() {
+  if (!gameRunning) return;
+
+  let brightness = drawSky();
+
+  // Update camera
+  camera.x = player.x - canvas.width / 2;
+  camera.y = player.y - canvas.height / 2;
+
+  // Draw blocks
+  let startX = Math.max(0, Math.floor(camera.x / TILE));
+  let startY = Math.max(0, Math.floor(camera.y / TILE));
+  let endX = Math.min(MAP_W, startX + VIEW_W);
+  let endY = Math.min(MAP_H, startY + VIEW_H);
+
+  for (let y = startY; y < endY; y++) {
+    for (let x = startX; x < endX; x++) {
+      if (map[y][x] !== BLOCKS.AIR) {
+        drawBlock(x, y, map[y][x]);
+      }
+    }
+  }
+
+  // Draw break progress
+  for (let key in breakProgress) {
+    let [bx, by] = key.split(',').map(Number);
+    let prog = breakProgress[key];
+    let hardness = BLOCK_HARDNESS[map[by][bx]] || 5;
+    if (prog > 0) {
+      let sx = bx * TILE - camera.x;
+      let sy = by * TILE - camera.y;
+      ctx.fillStyle = `rgba(0,0,0,${prog / hardness * 0.5})`;
+      ctx.fillRect(sx, sy, TILE, TILE);
+
+      // Crack lines
+      ctx.strokeStyle = `rgba(0,0,0,${prog / hardness})`;
+      ctx.lineWidth = 2;
+      let cracks = Math.floor(prog / hardness * 5);
+      for (let c = 0; c < cracks; c++) {
+        ctx.beginPath();
+        ctx.moveTo(sx + TILE * (c % 3) / 3, sy);
+        ctx.lineTo(sx + TILE * ((c + 1) % 3) / 3 + TILE / 3, sy + TILE);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Draw animals
+  for (let a of animals) {
+    drawAnimal(a);
+  }
+
+  // Draw particles
+  drawParticles();
+
+  // Draw player
+  let px = player.x - camera.x;
+  let py = player.y - camera.y;
+
+  // Player shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(px + TILE / 2, py + TILE - 2, TILE / 3, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Player body (Steve-like)
+  ctx.fillStyle = '#4a9';
+  ctx.fillRect(px + 6, py + 8, TILE - 12, TILE - 16);
+
+  // Head
+  ctx.fillStyle = '#c9a';
+  ctx.fillRect(px + 8, py - 2, TILE - 16, 14);
+
+  // Eyes
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(px + 10, py + 2, 6, 5);
+  ctx.fillRect(px + TILE - 16, py + 2, 6, 5);
+  ctx.fillStyle = '#43d';
+  ctx.fillRect(px + 12, py + 3, 3, 3);
+  ctx.fillRect(px + TILE - 14, py + 3, 3, 3);
+
+  // Hair
+  ctx.fillStyle = '#543';
+  ctx.fillRect(px + 8, py - 4, TILE - 16, 6);
+
+  // Legs
+  ctx.fillStyle = '#36a';
+  ctx.fillRect(px + 8, py + TILE - 10, 8, 10);
+  ctx.fillRect(px + TILE - 16, py + TILE - 10, 8, 10);
+
+  // Arms
+  ctx.fillStyle = '#c9a';
+  if (player.attackCooldown > 0) {
+    ctx.fillRect(px + TILE, py + 10, 12, 8);
+  } else {
+    ctx.fillRect(px - 4, py + 10, 10, 8);
+    ctx.fillRect(px + TILE - 6, py + 10, 10, 8);
+  }
+
+  // Held item
+  let heldItem = player.hotbar[player.selectedSlot];
+  if (heldItem && ITEM_INFO[heldItem]) {
+    ctx.font = '18px serif';
+    ctx.fillText(ITEM_INFO[heldItem].icon, px + TILE - 4, py + 20);
+  }
+
+  // Night overlay
+  if (brightness < 1) {
+    ctx.fillStyle = `rgba(0,0,40,${(1 - brightness) * 0.6})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Player light
+    let gradient = ctx.createRadialGradient(px + TILE / 2, py + TILE / 2, 0, px + TILE / 2, py + TILE / 2, 150);
+    gradient.addColorStop(0, `rgba(0,0,40,0)`);
+    gradient.addColorStop(1, `rgba(0,0,40,${(1 - brightness) * 0.5})`);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // Block highlight (mouse position)
+  let worldMouseX = Math.floor((mouse.x + camera.x) / TILE);
+  let worldMouseY = Math.floor((mouse.y + camera.y) / TILE);
+  if (worldMouseX >= 0 && worldMouseX < MAP_W && worldMouseY >= 0 && worldMouseY < MAP_H) {
+    let dist = Math.hypot(worldMouseX * TILE + TILE / 2 - player.x, worldMouseY * TILE + TILE / 2 - player.y);
+    if (dist < TILE * 4) {
+      let hx = worldMouseX * TILE - camera.x;
+      let hy = worldMouseY * TILE - camera.y;
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(hx, hy, TILE, TILE);
+    }
+  }
+
+  requestAnimationFrame(render);
+}
+
+// ==================== UPDATE ====================
+function update() {
+  if (!gameRunning) return;
+
+  // Player movement
+  let dx = 0, dy = 0;
+  if (keys['KeyW'] || keys['ArrowUp']) { dy = -1; player.direction = 'up'; }
+  if (keys['KeyS'] || keys['ArrowDown']) { dy = 1; player.direction = 'down'; }
+  if (keys['KeyA'] || keys['ArrowLeft']) { dx = -1; player.direction = 'left'; }
+  if (keys['KeyD'] || keys['ArrowRight']) { dx = 1; player.direction = 'right'; }
+
+  if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+
+  let newX = player.x + dx * player.speed;
+  let newY = player.y + dy * player.speed;
+
+  // Collision
+  let tileX = Math.floor(newX / TILE);
+  let tileY = Math.floor(newY / TILE);
+
+  if (tileX >= 0 && tileX < MAP_W && tileY >= 0 && tileY < MAP_H) {
+    let block = map[tileY][tileX];
+    if (block !== BLOCKS.WATER) {
+      player.x = newX;
+      player.y = newY;
+    }
+  }
+
+  // Keep in bounds
+  player.x = Math.max(TILE, Math.min((MAP_W - 1) * TILE, player.x));
+  player.y = Math.max(TILE, Math.min((MAP_H - 1) * TILE, player.y));
+
+  // Break progress
+  if (mouse.down) {
+    let wx = Math.floor((mouse.x + camera.x) / TILE);
+    let wy = Math.floor((mouse.y + camera.y) / TILE);
+    let dist = Math.hypot(wx * TILE + TILE / 2 - player.x, wy * TILE + TILE / 2 - player.y);
+
+    if (wx >= 0 && wx < MAP_W && wy >= 0 && wy < MAP_H && dist < TILE * 4) {
+      let key = wx + ',' + wy;
+      let block = map[wy][wx];
+      if (block !== BLOCKS.AIR && block !== BLOCKS.BEDROCK) {
+        if (!breakProgress[key]) breakProgress[key] = 0;
+        let heldItem = player.hotbar[player.selectedSlot];
+        let power = 1;
+        if (ITEM_INFO[heldItem] && ITEM_INFO[heldItem].power) {
+          power = ITEM_INFO[heldItem].power;
+        }
+        breakProgress[key] += power;
+
+        if (breakProgress[key] >= BLOCK_HARDNESS[block]) {
+          // Block broken
+          let item = BLOCK_TO_ITEM[block] || block;
+          player.inventory[item] = (player.inventory[item] || 0) + 1;
+          score++;
+          spawnBreakParticles(wx, wy, block);
+          map[wy][wx] = BLOCKS.AIR;
+          delete breakProgress[key];
+          updateHotbar();
+          document.getElementById('score').textContent = '⛏ ' + score;
+        }
+      }
+    }
+  }
+
+  // Remove break progress for other blocks
+  if (!mouse.down) {
+    for (let key in breakProgress) {
+      breakProgress[key] = Math.max(0, breakProgress[key] - 0.5);
+    }
+  }
+
+  // Attack cooldown
+  if (player.attackCooldown > 0) player.attackCooldown--;
+
+  // Animals update
+  for (let a of animals) {
+    if (!a.alive) continue;
+
+    a.moveTimer--;
+    if (a.hurtTimer > 0) a.hurtTimer--;
+
+    let info = ANIMAL_TYPES[a.type];
+    let distToPlayer = Math.hypot(a.x - player.x, a.y - player.y);
+
+    if (info.hostile && distToPlayer < TILE * 8) {
+      // Chase player
+      let angle = Math.atan2(player.y - a.y, player.x - a.x);
+      a.vx = Math.cos(angle) * info.speed * 2;
+      a.vy = Math.sin(angle) * info.speed * 2;
+
+      // Attack player
+      if (distToPlayer < TILE && a.attackTimer <= 0) {
+        player.hp -= 2;
+        a.attackTimer = 30;
+        updateHearts();
+        if (player.hp <= 0) {
+          player.hp = player.maxHp;
+          player.x = 40 * TILE;
+          player.y = 40 * TILE;
+          notify('💀 O\'ldingiz! Qayta tug\'ildingiz.');
+          updateHearts();
+        }
+      }
+    } else {
+      // Random movement
+      if (a.moveTimer <= 0) {
+        a.dir = Math.random() * Math.PI * 2;
+        a.moveTimer = 60 + Math.random() * 120;
+      }
+      a.vx = Math.cos(a.dir) * info.speed;
+      a.vy = Math.sin(a.dir) * info.speed;
+    }
+
+    if (a.attackTimer > 0) a.attackTimer--;
+
+    let ax = a.x + a.vx;
+    let ay = a.y + a.vy;
+    let atx = Math.floor(ax / TILE);
+    let aty = Math.floor(ay / TILE);
+
+    if (atx >= 0 && atx < MAP_W && aty >= 0 && aty < MAP_H && map[aty][atx] !== BLOCKS.WATER) {
+      a.x = ax;
+      a.y = ay;
+    } else {
+      a.dir = Math.random() * Math.PI * 2;
+    }
+
+    // Keep in bounds
+    a.x = Math.max(TILE, Math.min((MAP_W - 1) * TILE, a.x));
+    a.y = Math.max(TILE, Math.min((MAP_H - 1) * TILE, a.y));
+  }
+
+  // Day/night cycle
+  dayTime++;
+  if (dayTime % 2400 === 0) {
+    dayCount++;
+  }
+  document.getElementById('dayNight').textContent =
+    (dayTime % 2400 < 1200 ? '☀' : '🌙') + ' Kun ' + dayCount;
+}
+
+// ==================== GAME LOOP ====================
+let lastTime = 0;
+function gameLoop(timestamp) {
+  update();
+  requestAnimationFrame(gameLoop);
+}
+
+// ==================== INPUT ====================
+document.addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+
+  // Hotbar selection
+  if (e.code >= 'Digit1' && e.code <= 'Digit9') {
+    player.selectedSlot = parseInt(e.code.replace('Digit', '')) - 1;
+    updateHotbar();
+  }
+
+  // Eat food
+  let heldItem = player.hotbar[player.selectedSlot];
+  if (e.code === 'KeyE' && ITEM_INFO[heldItem] && ITEM_INFO[heldItem].heal) {
+    if (player.inventory[heldItem] > 0) {
+      player.hp = Math.min(player.maxHp, player.hp + ITEM_INFO[heldItem].heal);
+      player.inventory[heldItem]--;
+      updateHearts();
+      updateHotbar();
+      notify('🍽 ' + ITEM_INFO[heldItem].name + ' yedingiz! +' + ITEM_INFO[heldItem].heal + ' HP');
+    }
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  keys[e.code] = false;
+});
+
+canvas.addEventListener('mousedown', (e) => {
+  if (!gameRunning) return;
+  e.preventDefault();
+
+  let rect = canvas.getBoundingClientRect();
+  let scaleX = canvas.width / rect.width;
+  let scaleY = canvas.height / rect.height;
+  mouse.x = (e.clientX - rect.left) * scaleX;
+  mouse.y = (e.clientY - rect.top) * scaleY;
+
+  let wx = Math.floor((mouse.x + camera.x) / TILE);
+  let wy = Math.floor((mouse.y + camera.y) / TILE);
+  let dist = Math.hypot(wx * TILE + TILE / 2 - player.x, wy * TILE + TILE / 2 - player.y);
+
+  if (e.button === 0) {
+    mouse.down = true;
+  } else if (e.button === 2) {
+    // Place block
+    if (wx >= 0 && wx < MAP_W && wy >= 0 && wy < MAP_H && dist < TILE * 4) {
+      if (map[wy][wx] === BLOCKS.AIR) {
+        let heldItem = player.hotbar[player.selectedSlot];
+        if (player.inventory[heldItem] > 0 && heldItem >= 200) {
+          let blockType = heldItem - 200 + 1; // Map back
+          if (blockType >= 1 && blockType <= 16) {
+            map[wy][wx] = blockType;
+            player.inventory[heldItem]--;
+            updateHotbar();
+            notify('🧱 Blok qo\'yildi!');
+          }
+        }
+      }
+    }
+  }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  let rect = canvas.getBoundingClientRect();
+  let scaleX = canvas.width / rect.width;
+  let scaleY = canvas.height / rect.height;
+  mouse.x = (e.clientX - rect.left) * scaleX;
+  mouse.y = (e.clientY - rect.top) * scaleY;
+});
+
+canvas.addEventListener('mouseup', () => {
+  mouse.down = false;
+});
+
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// ==================== START GAME ====================
+function startGame() {
+  document.getElementById('menu').style.display = 'none';
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('crosshair').style.display = 'block';
+  document.getElementById('inventory').style.display = 'flex';
+
+  generateMap();
+  spawnAnimals();
+  initInventory();
+  updateHotbar();
+  updateHearts();
+
+  gameRunning = true;
+  requestAnimationFrame(render);
+  requestAnimationFrame(gameLoop);
+
+  notify('🎮 Minecraft\'ga xush kelibsiz!');
+}
+
+// Preload
+generateMap();
+spawnAnimals();
+</script>
+
+</body>
+</html>
